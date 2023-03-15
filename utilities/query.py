@@ -49,9 +49,13 @@ def create_prior_queries(doc_ids, doc_id_weights,
 
 
 # Hardcoded query here.  Better to use search templates or other query config.
-def create_query(user_query, click_prior_query, filters, sort="_score", sortDir="desc", size=10, source=None):
+def create_query(user_query, click_prior_query, filters, sort="_score", sortDir="desc", size=10, source=None, use_synonym=False):
+    field_name = "name"
+    if use_synonym:
+        field_name = "name.synonyms"
+
     query_obj = {
-        'size': size,
+        'size': 1,
         "sort": [
             {sort: {"order": sortDir}}
         ],
@@ -65,7 +69,7 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
                         "should": [  #
                             {
                                 "match": {
-                                    "name": {
+                                    f"{field_name}": {
                                         "query": user_query,
                                         "fuzziness": "1",
                                         "prefix_length": 2,
@@ -167,6 +171,7 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
             }
         }
     }
+
     if click_prior_query is not None and click_prior_query != "":
         query_obj["query"]["function_score"]["query"]["bool"]["should"].append({
             "query_string": {
@@ -183,15 +188,17 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
             print("Couldn't replace query for *")
     if source is not None:  # otherwise use the default and retrieve all source
         query_obj["_source"] = source
+
     return query_obj
 
 
-def search(client, user_query, index="bbuy_products", sort="_score", sortDir="desc"):
+def search(client, user_query, index="bbuy_products", sort="_score", sortDir="desc", use_synonym=False):
     #### W3: classify the query
     #### W3: create filters and boosts
     # Note: you may also want to modify the `create_query` method above
-    query_obj = create_query(user_query, click_prior_query=None, filters=None, sort=sort, sortDir=sortDir, source=["name", "shortDescription"])
+    query_obj = create_query(user_query, click_prior_query=None, filters=None, sort=sort, sortDir=sortDir, source=["name", "shortDescription"], use_synonym=use_synonym)
     logging.info(query_obj)
+    print(query_obj)
     response = client.search(query_obj, index=index)
     if response and response['hits']['hits'] and len(response['hits']['hits']) > 0:
         hits = response['hits']['hits']
@@ -212,7 +219,7 @@ if __name__ == "__main__":
                          help='The OpenSearch port')
     general.add_argument('--user',
                          help='The OpenSearch admin.  If this is set, the program will prompt for password too. If not set, use default of admin/admin')
-
+    general.add_argument("-syn", '--synonyms', type=bool, default=False, help='Use sysnonym if set')
     args = parser.parse_args()
 
     if len(vars(args)) == 0:
@@ -221,6 +228,7 @@ if __name__ == "__main__":
 
     host = args.host
     port = args.port
+
     if args.user:
         password = getpass()
         auth = (args.user, password)
@@ -240,13 +248,12 @@ if __name__ == "__main__":
     )
     index_name = args.index
     query_prompt = "\nEnter your query (type 'Exit' to exit or hit ctrl-c):"
-    print(query_prompt)
-    for line in fileinput.input():
+
+    while True:
+        line=input(query_prompt).rstrip()
         query = line.rstrip()
         if query == "Exit":
             break
-        search(client=opensearch, user_query=query, index=index_name)
-
-        print(query_prompt)
+        search(client=opensearch, user_query=query, index=index_name, use_synonym=args.synonyms)
 
     
