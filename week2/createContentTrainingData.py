@@ -5,6 +5,8 @@ from tqdm import tqdm
 import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from functools import reduce
+from operator import concat
 
 def transform_name(product_name):
     # IMPLEMENT
@@ -31,11 +33,30 @@ if os.path.isdir(output_dir) == False:
 
 if args.input:
     directory = args.input
+
 # IMPLEMENT: Track the number of items in each category and only output if above the min
 min_products = args.min_products
 names_as_labels = False
 if args.label == 'name':
     names_as_labels = True
+
+def get_pruned_labels(labels):
+    # count of products per label
+    labels_w_min_product_count = {}
+    pruned_labels = []
+    for (cat, name) in labels:
+        val = 1
+        if cat in labels_w_min_product_count:
+            val = labels_w_min_product_count[cat] + 1
+        
+        labels_w_min_product_count[cat] = val
+
+    for (cat, name) in labels:
+        if labels_w_min_product_count[cat] >= min_products:
+            pruned_labels.append((cat,name))
+
+    return pruned_labels
+
 
 def _label_filename(filename):
     tree = ET.parse(filename)
@@ -56,6 +77,7 @@ def _label_filename(filename):
               # Replace newline chars with spaces so fastText doesn't complain
               name = child.find('name').text.replace('\n', ' ')
               labels.append((cat, transform_name(name)))
+    
     return labels
 
 if __name__ == '__main__':
@@ -63,7 +85,10 @@ if __name__ == '__main__':
     print("Writing results to %s" % output_file)
     with multiprocessing.Pool() as p:
         all_labels = tqdm(p.imap(_label_filename, files), total=len(files))
+        merged_labels = reduce(concat, all_labels)
+        pruned_labels = get_pruned_labels(merged_labels)
+        
         with open(output_file, 'w') as output:
-            for label_list in all_labels:
-                for (cat, name) in label_list:
+            # for label_list in all_labels:
+                for (cat, name) in pruned_labels:
                     output.write(f'__label__{cat} {name}\n')
