@@ -4,6 +4,8 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 import numpy as np
 import csv
+import re 
+from nltk.stem import *
 
 # Useful if you want to perform stemming.
 import nltk
@@ -44,11 +46,25 @@ for child in root:
         parents.append(cat_path_ids[-2])
 parents_df = pd.DataFrame(list(zip(categories, parents)), columns =['category', 'parent'])
 
+stemmer = PorterStemmer()
+
+def normalize(text):
+    lower = text.lower()
+    replace_w_spaces = lower.replace('[^a-zA-Z0-9]',' ')
+    single_space = re.sub(' +',' ', replace_w_spaces)
+    tokens = single_space.split()
+    stemmed_tokens = [stemmer.stem(token) for token in tokens]
+    return ' '.join(stemmed_tokens)
+
 # Read the training data into pandas, only keeping queries with non-root categories in our category tree.
 queries_df = pd.read_csv(queries_file_name)[['category', 'query']]
 queries_df = queries_df[queries_df['category'].isin(categories)]
 
 # IMPLEMENT ME: Convert queries to lowercase, and optionally implement other normalization, like stemming.
+# queries_df['query'] = queries_df['query'].apply(lambda x: x.lower().replace('[^a-zA-Z0-9]',' '))
+# queries_df['query'] = queries_df['query'].apply(lambda x:re.sub(' +', ' ', x))
+queries_df['query'] = queries_df['query'].apply(normalize)
+
 
 # IMPLEMENT ME: Roll up categories to ancestors to satisfy the minimum number of queries per category.
 
