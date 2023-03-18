@@ -50,7 +50,7 @@ stemmer = PorterStemmer()
 
 def normalize(text):
     lower = text.lower()
-    replace_w_spaces = lower.replace('[^a-zA-Z0-9]',' ')
+    replace_w_spaces = re.sub('[^0-9a-zA-Z]+', ' ', lower)
     single_space = re.sub(' +',' ', replace_w_spaces)
     tokens = single_space.split()
     stemmed_tokens = [stemmer.stem(token) for token in tokens]
