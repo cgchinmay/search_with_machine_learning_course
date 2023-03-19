@@ -18,7 +18,7 @@ output_file_name = r'/workspace/datasets/fasttext/labeled_queries.txt'
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 general = parser.add_argument_group("general")
-general.add_argument("--min_queries", default=1,  help="The minimum number of queries per category label (default is 1)")
+general.add_argument("--min_queries", default=1000,  help="The minimum number of queries per category label (default is 1)")
 general.add_argument("--output", default=output_file_name, help="the file to output to")
 
 args = parser.parse_args()
@@ -61,12 +61,25 @@ queries_df = pd.read_csv(queries_file_name)[['category', 'query']]
 queries_df = queries_df[queries_df['category'].isin(categories)]
 
 # IMPLEMENT ME: Convert queries to lowercase, and optionally implement other normalization, like stemming.
-# queries_df['query'] = queries_df['query'].apply(lambda x: x.lower().replace('[^a-zA-Z0-9]',' '))
-# queries_df['query'] = queries_df['query'].apply(lambda x:re.sub(' +', ' ', x))
 queries_df['query'] = queries_df['query'].apply(normalize)
+category_count_df = queries_df.groupby(['category'])['query'].count().reset_index(name="count")
 
+# low_count_df = category_count_df[category_count_df['count'] < min_queries]
+# print(low_count_df)
 
 # IMPLEMENT ME: Roll up categories to ancestors to satisfy the minimum number of queries per category.
+category_count_df = queries_df.groupby(['category'])['query'].count().reset_index(name="count")
+
+count = 0
+size = category_count_df[category_count_df['count'] < min_queries].size
+
+while size != 0:
+    for index, row in category_count_df.iterrows():
+        if row['count'] < min_queries:
+            queries_df.loc[queries_df['category'] == row['category'], 'category'] = parents_df.loc[parents_df['category'] == row['category'],'parent']
+    
+    category_count_df = queries_df.groupby(['category'])['query'].count().reset_index(name="count")
+    size = category_count_df[category_count_df['count'] < min_queries].size
 
 # Create labels in fastText format.
 queries_df['label'] = '__label__' + queries_df['category']
